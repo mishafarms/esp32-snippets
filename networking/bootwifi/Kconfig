@@ -1,0 +1,15 @@
+menu "BootWifi Settings"
+
+config RESTART_COUNTER
+       int "# times to restart quickly to enter bootwifi"
+       default 0
+       help
+		Set to a positive value to be able to restart quickly and enter config from wifi
+
+config RESTART_TIMEOUT
+       int "#ms you have to restart and be considered quickly"
+       default 3000
+       help
+		Increase or decrease.
+		
+endmenu
