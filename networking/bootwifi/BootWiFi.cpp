@@ -24,9 +24,11 @@
 #include <GeneralUtils.h>
 #include "BootWiFi.h"
 #include "JSON.h"
-#if defined(RESTART_COUNTER)
+
+// include in case we do a restart timer, no harm.
+
 # include <freertos/timers.h>
-#endif
+
 #include "esp_wifi.h"
 #include "esp_err.h"
 #include "sdkconfig.h"
@@ -38,9 +40,7 @@
 #define KEY_VERSION "version"
 uint32_t g_version=0x0100;
 
-#if defined(RESTART_COUNTER)
-# define BOOTWIFI_RESTART_COUNT_RESET     (3)
-# define BOOTWIFI_RESTART_TIMEOUT_MS      (3000)
+#if (CONFIG_RESTART_COUNTER > 0)
 # define KEY_RESTART         "restartCount"
 #endif
 
@@ -64,7 +64,7 @@ typedef struct {
 
 // Forward declarations
 static void saveConnectionInfo(connection_info_t *pConnectionInfo);
-#if defined(RESTART_COUNTER)
+#if (CONFIG_RESTART_COUNTER > 0)
 static int restart_count_get(void);
 #endif
 
@@ -336,8 +336,8 @@ void BootWiFi::bootWiFi2() {
 	// even if the existing configured access point is available.
 	m_wifi.setWifiEventHandler(new BootWifiEventHandler(this));
 	if (checkOverrideGpio() 
-#if defined(RESTART_COUNTER)
-	    || (restart_count_get() >= MAX_RESTART_TO_CONFIG)
+#if (CONFIG_RESTART_COUNTER > 0)
+	    || (restart_count_get() >= CONFIG_RESTART_COUNTER)
 #endif
 	    )
 	{
@@ -441,7 +441,7 @@ std::string  BootWiFi::getIp(void)
     return (m_wifi.getStaIp());
 }
 
-#if defined(RESTART_COUNTER)
+#if (CONFIG_RESTART_COUNTER > 0)
 static void restart_count_erase_timercb(void *timer)
 {
     ESP_LOGI(TAG, "Erase restart callback");
@@ -470,12 +470,12 @@ static int restart_count_get()
     restart_count++;
     myNamespace.set(KEY_RESTART, restart_count);
 
-    /* create a timer that in 3 seconds will clear the restart counter, so if you restart within 3 secs */
+    /* create a timer that in N seconds will clear the restart counter, so if you restart within N secs */
     /* the restart counter will increment. So to get it to increment remove power and add power then remove */
-    /* power again, if you continue to reboot within 3 seconds each time then the restart counter will continue */
+    /* power again, if you continue to reboot within N seconds each time then the restart counter will continue */
     /* to incrment, the caller can decide when to do something because of this */
     
-    timer = xTimerCreate("restart_count_erase", BOOTWIFI_RESTART_TIMEOUT_MS / portTICK_RATE_MS,
+    timer = xTimerCreate("restart_count_erase", CONFIG_RESTART_TIMEOUT / portTICK_RATE_MS,
                          false, NULL, restart_count_erase_timercb);
     if (!timer)
     {

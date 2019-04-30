@@ -12,9 +12,6 @@
 #include <HttpServer.h>
 #include <FreeRTOS.h>
 
-#define RESTART_COUNTER
-#define MAX_RESTART_TO_CONFIG (3)
-
 typedef void (*bootwifi_callback_t)(int rc);
 class BootWifiEventHandler;
 
