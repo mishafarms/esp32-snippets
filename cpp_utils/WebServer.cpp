@@ -19,6 +19,8 @@
 #include <string>
 #include <utility>
 
+#include <errno.h>
+
 const char WebServer::HTTPRequest::HTTP_HEADER_ACCEPT[]         = "Accept";
 const char WebServer::HTTPRequest::HTTP_HEADER_ALLOW[]          = "Allow";
 const char WebServer::HTTPRequest::HTTP_HEADER_CONNECTION[]     = "Connection";
@@ -304,8 +306,10 @@ static void mongoose_event_handler_web_server(struct mg_connection* mgConnection
 				struct WebServerUserData* p2 = new WebServerUserData();
 				ESP_LOGD(LOG_TAG, "New User_data address 0x%d", (uint32_t) p2);
 				p2->originalUserData	= pWebServerUserData;
-				p2->pWebServer		  = pWebServerUserData->pWebServer;
+				p2->pWebServer          = pWebServerUserData->pWebServer;
 				p2->pWebSocketHandler   = pWebServer->m_pWebSocketHandlerFactory->newInstance();
+				// the WebSocketHandler needs the connection
+				p2->pWebSocketHandler->setConnection(mgConnection);
 				mgConnection->user_data = p2;
 			} else {
 				ESP_LOGD(LOG_TAG, "We received a WebSocket request but we have no handler factory!");
@@ -352,11 +356,6 @@ WebServer::WebServer() {
 	m_pMultiPartFactory		= nullptr;
 	m_pWebSocketHandlerFactory = nullptr;
 } // WebServer
-
-
-WebServer::~WebServer() {
-}
-
 
 /**
  * @brief Get the current root path.
@@ -481,7 +480,6 @@ void WebServer::setRootPath(std::string&& path) {
 void WebServer::setWebSocketHandlerFactory(WebSocketHandlerFactory* pWebSocketHandlerFactory) {
 	m_pWebSocketHandlerFactory = pWebSocketHandlerFactory;
 } // setWebSocketHandlerFactory
-
 
 /**
  * @brief Constructor.
@@ -683,7 +681,8 @@ void WebServer::processRequest(struct mg_connection* mgConnection, struct http_m
 	 */
 	std::vector<PathHandler>::iterator it;
 	for (it = m_pathHandlers.begin(); it != m_pathHandlers.end(); ++it) {
-		if ((*it).match(message->method.p, message->method.len, message->uri.p)) {
+		if ((*it).match(message->method.p, message->method.len, message->uri.p, message->uri.len)) {
+			ESP_LOGI(LOG_TAG, "matched? method %.*s uri %.*s", (int) message->method.len, message->method.p, (int) message->uri.len, message->uri.p);
 			HTTPRequest httpRequest(message);
 			(*it).invoke(&httpRequest, &httpResponse);
 			ESP_LOGD(LOG_TAG, "Found a match!!");
@@ -718,9 +717,18 @@ void WebServer::processRequest(struct mg_connection* mgConnection, struct http_m
 				file = fopen(gzFilePath.c_str(), "rb");
 
 				if (file != nullptr) {
+					ESP_LOGD(LOG_TAG, "Found %s file", gzFilePath.c_str());
 					// add some needed headers
 					httpResponse.addHeader("Content-Encoding", "gzip");
 				}
+				else
+				{
+					ESP_LOGD(LOG_TAG, "We did not open a compressed file %s (%s)", gzFilePath.c_str(), strerror(errno));
+				}
+			}
+			else
+			{
+				ESP_LOGI(LOG_TAG, "They are not willing to accept gz files");
 			}
 		}
 
@@ -748,6 +756,7 @@ void WebServer::processRequest(struct mg_connection* mgConnection, struct http_m
 		}
 		free(pData);
 	} else {
+		ESP_LOGI(LOG_TAG, "We did not open a file %s (%s)", filePath.c_str(), strerror(errno));
 		// Handle unable to open file
 		httpResponse.setStatus(404); // Not found
 		httpResponse.sendData("");
@@ -786,7 +795,7 @@ void WebServer::processMultiRequest(struct mg_connection* mgConnection, struct h
 		 */
 		std::vector<PathHandler>::iterator it;
 		for (it = m_pathHandlers.begin(); it != m_pathHandlers.end(); ++it) {
-			if ((*it).match(matchMethod.c_str(), matchMethod.length(), message->uri.p)) {
+			if ((*it).match(matchMethod.c_str(), matchMethod.length(), message->uri.p, message->uri.len)) {
 				ESP_LOGD(LOG_TAG, "Found a match!!");
 
 				struct WebServerUserData *pWebServerUserData = (struct WebServerUserData*) mgConnection->user_data;
@@ -869,12 +878,28 @@ WebServer::PathHandler::PathHandler(std::string&& method, const std::string& pat
  * @param [in] path The path to be matched.
  * @return True if the path matches.
  */
-bool WebServer::PathHandler::match(const char* method, size_t method_len, const char* path) {
+bool WebServer::PathHandler::match(const char* method, size_t method_len, const char* path, size_t path_len) {
 	//ESP_LOGD(LOG_TAG, "match: %s with %s", m_pattern.c_str(), path.c_str());
 	if (method_len != m_method.length() || strncmp(method, m_method.c_str(), method_len) != 0) {
 		return false;
 	}
-	return std::regex_search(path, m_pattern);
+
+	char *temp = (char *) calloc(1, path_len);
+
+	strncpy(temp, path, path_len);
+
+	bool ret;
+
+	ret = std::regex_search(temp, m_pattern);
+
+	free(temp);
+
+	if (ret)
+	{
+		ESP_LOGI(LOG_TAG, "path [%.*s]", (int) path_len, path);
+	}
+
+	return ret;
 } // match
 
 
@@ -1354,7 +1379,7 @@ void WebServer::WebSocketHandler::onClosed() {
 void WebServer::WebSocketHandler::sendData(const std::string& message) {
 	ESP_LOGD(LOG_TAG, "WebSocketHandler::sendData(length=%d)", message.length());
 	mg_send_websocket_frame(m_mgConnection,
-	   WEBSOCKET_OP_BINARY | WEBSOCKET_OP_CONTINUE,
+	   WEBSOCKET_OP_TEXT | WEBSOCKET_OP_CONTINUE,
 	   message.data(), message.length());
 } // sendData
 

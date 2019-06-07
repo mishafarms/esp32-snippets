@@ -202,6 +202,8 @@ public:
 	 */
 	class HTTPMultiPartFactory {
 	public:
+		virtual ~HTTPMultiPartFactory() = default;
+
 		/**
 		 * @brief Create a new HTTPMultiPart instance.
 		 * @return A new HTTPMultiPart instance.
@@ -218,7 +220,7 @@ public:
 		public:
 			PathHandler(const std::string& method, const std::string& pathPattern, void (*webServerRequestHandler) (WebServer::HTTPRequest* pHttpRequest, WebServer::HTTPResponse* pHttpResponse));
 			PathHandler(std::string&& method, const std::string& pathPattern, void (*webServerRequestHandler) (WebServer::HTTPRequest* pHttpRequest, WebServer::HTTPResponse* pHttpResponse));
-			bool match(const char* method, size_t method_len, const char* path);
+			bool match(const char* method, size_t method_len, const char* path, size_t path_len);
 			void invoke(HTTPRequest* request, HTTPResponse* response);
 
 		private:
@@ -233,12 +235,17 @@ public:
 	 */
 	class WebSocketHandler {
 	public:
+		virtual ~WebSocketHandler() = default;
+
 		void onCreated();
 		virtual void onMessage(const std::string& message);
 		void onClosed();
 		void sendData(const std::string& message);
 		void sendData(const uint8_t* data, uint32_t size);
 		void close();
+		void setConnection(struct mg_connection* mgConnection) {
+			m_mgConnection = mgConnection;
+		}
 
 	private:
 		struct mg_connection* m_mgConnection;
@@ -247,12 +254,13 @@ public:
 
 	class WebSocketHandlerFactory {
 	public:
+		virtual ~WebSocketHandlerFactory() = default;
 		virtual WebSocketHandler* newInstance() = 0;
 
 	};
 
 	WebServer();
-	virtual ~WebServer();
+	virtual ~WebServer() = default;
 	void addPathHandler(const std::string& method, const std::string& pathExpr, void (*webServerRequestHandler) (WebServer::HTTPRequest* pHttpRequest, WebServer::HTTPResponse* pHttpResponse));
 	void addPathHandler(std::string&& method, const std::string& pathExpr, void (*webServerRequestHandler) (WebServer::HTTPRequest* pHttpRequest, WebServer::HTTPResponse* pHttpResponse));
 	const std::string& getRootPath();
