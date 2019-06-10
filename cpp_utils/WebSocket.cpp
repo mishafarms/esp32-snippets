@@ -5,6 +5,7 @@
  *      Author: kolban
  */
 
+#include "sdkconfig.h"
 #include <sstream>
 #include "WebSocket.h"
 #include "Task.h"

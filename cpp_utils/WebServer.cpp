@@ -18,6 +18,7 @@
 #include "mongoose.h"
 #include <string>
 #include <utility>
+//#include <task.h>
 
 #include <errno.h>
 
@@ -250,7 +251,7 @@ static void mongoose_event_handler_web_server(struct mg_connection* mgConnection
 				delete pWebServerUserData;
 				WebServer::HTTPResponse httpResponse = WebServer::HTTPResponse(mgConnection);
 				httpResponse.setStatus(status);
-				ESP_LOGI(LOG_TAG, "MultiPart status %d", status);
+				ESP_LOGD(LOG_TAG, "MultiPart status %d", status);
 				if (status == 200)
 				{
 					httpResponse.sendData("File uploaded OK");
@@ -408,16 +409,16 @@ void WebServer::addPathHandler(std::string&& method, const std::string& pathExpr
  */
 void WebServer::start(uint16_t port) {
 	ESP_LOGD(LOG_TAG, "WebServer task starting");
-	struct mg_mgr mgr;
-	mg_mgr_init(&mgr, NULL);
+	mg_mgr_init(&m_mgr, NULL);
+	TaskHandle_t self = 0;
 
 	std::stringstream stringStream;
 	stringStream << ':' << port;
-	struct mg_connection *mgConnection = mg_bind(&mgr, stringStream.str().c_str(), mongoose_event_handler_web_server);
+	struct mg_connection *mgConnection = mg_bind(&m_mgr, stringStream.str().c_str(), mongoose_event_handler_web_server);
 
 	if (mgConnection == NULL) {
 		ESP_LOGE(LOG_TAG, "No connection from the mg_bind()");
-		vTaskDelete(NULL);
+		vTaskDelete(self);
 		return;
 	}
 
@@ -430,7 +431,7 @@ void WebServer::start(uint16_t port) {
 
 	ESP_LOGD(LOG_TAG, "WebServer listening on port %d", port);
 	while (true) {
-		mg_mgr_poll(&mgr, 2000);
+		mg_mgr_poll(&m_mgr, 2000);
 	}
 } // run
 
@@ -480,6 +481,45 @@ void WebServer::setRootPath(std::string&& path) {
 void WebServer::setWebSocketHandlerFactory(WebSocketHandlerFactory* pWebSocketHandlerFactory) {
 	m_pWebSocketHandlerFactory = pWebSocketHandlerFactory;
 } // setWebSocketHandlerFactory
+
+/**
+ * @brief Send data down all the WebSocket(s)
+ * @param [in] message The message to send down the socket.
+ * @return N/A.
+ */
+void WebServer::broadcastData(const std::string& message) {
+	ESP_LOGD(LOG_TAG, "broadcastData(length=%d)", message.length());
+	struct mg_connection *conn;
+	for (conn = mg_next(&m_mgr, NULL); conn != NULL; conn = mg_next(&m_mgr, conn))
+	{
+		if (conn->flags & MG_F_IS_WEBSOCKET)
+		{
+			mg_send_websocket_frame(conn,
+					WEBSOCKET_OP_TEXT | WEBSOCKET_OP_CONTINUE,
+					message.data(), message.length());
+		}
+	}
+} // broadcastData
+
+
+/**
+ * @brief Send data down all the WebSocket(s)
+ * @param [in] data The message to send down the socket.
+ * @param [in] size The size of the message
+ * @return N/A.
+ */
+void WebServer::broadcastData(const uint8_t* data, uint32_t size) {
+	struct mg_connection *conn;
+	for (conn = mg_next(&m_mgr, NULL); conn != NULL; conn = mg_next(&m_mgr, conn))
+	{
+		if (conn->flags & MG_F_IS_WEBSOCKET)
+		{
+			mg_send_websocket_frame(conn,
+					WEBSOCKET_OP_BINARY | WEBSOCKET_OP_CONTINUE,
+					data, size);
+		}
+	}
+} // broadcastData
 
 /**
  * @brief Constructor.
@@ -682,7 +722,7 @@ void WebServer::processRequest(struct mg_connection* mgConnection, struct http_m
 	std::vector<PathHandler>::iterator it;
 	for (it = m_pathHandlers.begin(); it != m_pathHandlers.end(); ++it) {
 		if ((*it).match(message->method.p, message->method.len, message->uri.p, message->uri.len)) {
-			ESP_LOGI(LOG_TAG, "matched? method %.*s uri %.*s", (int) message->method.len, message->method.p, (int) message->uri.len, message->uri.p);
+			ESP_LOGD(LOG_TAG, "matched? method %.*s uri %.*s", (int) message->method.len, message->method.p, (int) message->uri.len, message->uri.p);
 			HTTPRequest httpRequest(message);
 			(*it).invoke(&httpRequest, &httpResponse);
 			ESP_LOGD(LOG_TAG, "Found a match!!");
@@ -756,7 +796,7 @@ void WebServer::processRequest(struct mg_connection* mgConnection, struct http_m
 		}
 		free(pData);
 	} else {
-		ESP_LOGI(LOG_TAG, "We did not open a file %s (%s)", filePath.c_str(), strerror(errno));
+		ESP_LOGD(LOG_TAG, "We did not open a file %s (%s)", filePath.c_str(), strerror(errno));
 		// Handle unable to open file
 		httpResponse.setStatus(404); // Not found
 		httpResponse.sendData("");
@@ -896,7 +936,7 @@ bool WebServer::PathHandler::match(const char* method, size_t method_len, const 
 
 	if (ret)
 	{
-		ESP_LOGI(LOG_TAG, "path [%.*s]", (int) path_len, path);
+		ESP_LOGD(LOG_TAG, "path [%.*s]", (int) path_len, path);
 	}
 
 	return ret;
@@ -1396,6 +1436,44 @@ void WebServer::WebSocketHandler::sendData(const uint8_t* data, uint32_t size) {
 	   data, size);
 } // sendData
 
+/**
+ * @brief Send data down all the WebSocket(s)
+ * @param [in] message The message to send down the socket.
+ * @return N/A.
+ */
+void WebServer::WebSocketHandler::broadcastData(const std::string& message) {
+	ESP_LOGD(LOG_TAG, "WebSocketHandler::sendData(length=%d)", message.length());
+	struct mg_connection *conn;
+	for (conn = mg_next(m_mgConnection->mgr, NULL); conn != NULL; conn = mg_next(m_mgConnection->mgr, conn))
+	{
+		if (conn->flags & MG_F_IS_WEBSOCKET)
+		{
+			mg_send_websocket_frame(conn,
+					WEBSOCKET_OP_TEXT | WEBSOCKET_OP_CONTINUE,
+					message.data(), message.length());
+		}
+	}
+} // broadcastData
+
+
+/**
+ * @brief Send data down all the WebSocket(s)
+ * @param [in] data The message to send down the socket.
+ * @param [in] size The size of the message
+ * @return N/A.
+ */
+void WebServer::WebSocketHandler::broadcastData(const uint8_t* data, uint32_t size) {
+	struct mg_connection *conn;
+	for (conn = mg_next(m_mgConnection->mgr, NULL); conn != NULL; conn = mg_next(m_mgConnection->mgr, conn))
+	{
+		if (conn->flags & MG_F_IS_WEBSOCKET)
+		{
+			mg_send_websocket_frame(conn,
+					WEBSOCKET_OP_BINARY | WEBSOCKET_OP_CONTINUE,
+					data, size);
+		}
+	}
+} // broadcastData
 
 /**
  * @brief Close the WebSocket from the web server end.

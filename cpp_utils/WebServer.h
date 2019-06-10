@@ -242,6 +242,8 @@ public:
 		void onClosed();
 		void sendData(const std::string& message);
 		void sendData(const uint8_t* data, uint32_t size);
+		void broadcastData(const std::string& message);
+		void broadcastData(const uint8_t* data, uint32_t size);
 		void close();
 		void setConnection(struct mg_connection* mgConnection) {
 			m_mgConnection = mgConnection;
@@ -272,10 +274,13 @@ public:
 	void processRequest(struct mg_connection* mgConnection, struct http_message* message);
 	void processMultiRequest(struct mg_connection* mgConnection, struct http_message* message);
 	void continueConnection(struct mg_connection* mgConnection);
+	void broadcastData(const std::string& message);
+	void broadcastData(const uint8_t* data, uint32_t size);
 	HTTPMultiPartFactory* m_pMultiPartFactory;
 	WebSocketHandlerFactory* m_pWebSocketHandlerFactory;
 
 private:
+	struct mg_mgr m_mgr;
 	std::string m_rootPath;
 	std::vector<PathHandler> m_pathHandlers;
 	std::map<sock_t, FILE*> unfinishedConnection;
