@@ -6,6 +6,8 @@
  * See the README.md for full information.
  *
  */
+#include "sdkconfig.h"
+#include <tcpip_adapter.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <esp_log.h>
@@ -31,7 +33,6 @@
 
 #include "esp_wifi.h"
 #include "esp_err.h"
-#include "sdkconfig.h"
 #include "selectAP.h"
 
 // If the structure of a record saved for a subsequent reboot changes
