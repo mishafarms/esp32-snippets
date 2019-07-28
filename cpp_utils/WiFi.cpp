@@ -178,6 +178,11 @@ uint8_t WiFi::connectAP(const std::string& ssid, const std::string& password, bo
 		ESP_LOGE(LOG_TAG, "esp_wifi_set_mode: rc=%d %s", errRc, GeneralUtils::errorToString(errRc));
 		abort();
 	}
+	errRc = ::esp_wifi_set_ps(WIFI_PS_NONE);
+	if (errRc != ESP_OK) {
+		ESP_LOGE(LOG_TAG, "esp_wifi_set_ps: rc=%d %s", errRc, GeneralUtils::errorToString(errRc));
+		//abort();
+	}
 	wifi_config_t sta_config;
 	::memset(&sta_config, 0, sizeof(sta_config));
 	::memcpy(sta_config.sta.ssid, ssid.data(), ssid.size());
