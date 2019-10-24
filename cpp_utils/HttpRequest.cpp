@@ -39,7 +39,10 @@
 #include "GeneralUtils.h"
 
 #include <esp_log.h>
-#include <esp32/sha.h>
+
+// for SDK 3.3
+#include <hwcrypto/sha.h>
+//#include <esp32/sha.h>
 
 #define STATE_NAME  0
 #define STATE_VALUE 1
