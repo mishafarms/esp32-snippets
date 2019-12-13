@@ -10,6 +10,7 @@
 #include <iomanip>
 #include "I2S.h"
 #include "GPIO.h"
+#include <soc/gpio_periph.h>
 #include "FreeRTOS.h"
 #include "GeneralUtils.h"
 
@@ -18,7 +19,7 @@ extern "C" {
 	#include <soc/i2s_struct.h>
 }
 
-#include <rom/lldesc.h>
+#include <esp32/rom/lldesc.h>
 #include <esp_intr_alloc.h>
 #include <esp_log.h>
 

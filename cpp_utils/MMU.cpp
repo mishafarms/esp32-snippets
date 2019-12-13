@@ -8,7 +8,7 @@
 #include "MMU.h"
 #include <stdio.h>
 #include <soc/dport_reg.h>
-#include <rom/cache.h>
+#include <esp32/rom/cache.h>
 
 // The following functions are provided by spi_flash.h
 extern "C" {

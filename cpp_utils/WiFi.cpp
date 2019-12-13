@@ -223,8 +223,8 @@ void WiFi::dump() {
 	ESP_LOGD(LOG_TAG, "WiFi Dump");
 	ESP_LOGD(LOG_TAG, "---------");
 	char ipAddrStr[30];
-	ip_addr_t ip = ::dns_getserver(0);
-	inet_ntop(AF_INET, &ip, ipAddrStr, sizeof(ipAddrStr));
+	const ip_addr_t *ip = ::dns_getserver(0);
+	inet_ntop(AF_INET, ip, ipAddrStr, sizeof(ipAddrStr));
 	ESP_LOGD(LOG_TAG, "DNS Server[0]: %s", ipAddrStr);
 } // dump
 
@@ -248,14 +248,6 @@ bool WiFi::isConnectedToAP() {
 
 	WiFi* pWiFi = (WiFi*) ctx;   // retrieve the WiFi object from the passed in context.
 
-	// Invoke the event handler.
-	esp_err_t rc;
-	if (pWiFi->m_pWifiEventHandler != nullptr) {
-		rc = pWiFi->m_pWifiEventHandler->getEventHandler()(pWiFi->m_pWifiEventHandler, event);
-	} else {
-		rc = ESP_OK;
-	}
-
 	// If the event we received indicates that we now have an IP address or that a connection was disconnected then unlock the mutex that
 	// indicates we are waiting for a connection complete.
 	if (event->event_id == SYSTEM_EVENT_STA_GOT_IP || event->event_id == SYSTEM_EVENT_STA_DISCONNECTED) {
@@ -265,6 +257,14 @@ bool WiFi::isConnectedToAP() {
 			pWiFi->m_apConnectionStatus = event->event_info.disconnected.reason;
 		}
 		pWiFi->m_connectFinished.give();
+	}
+
+	// Invoke the event handler.
+	esp_err_t rc;
+	if (pWiFi->m_pWifiEventHandler != nullptr) {
+		rc = pWiFi->m_pWifiEventHandler->getEventHandler()(pWiFi->m_pWifiEventHandler, event);
+	} else {
+		rc = ESP_OK;
 	}
 
 	return rc;

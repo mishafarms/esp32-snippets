@@ -5,6 +5,7 @@ set(COMPONENT_REQUIRES
   "json"
   "mdns"
   "nvs_flash"
+  "mongoose"
 )
 set(COMPONENT_PRIV_REQUIRES )
 
