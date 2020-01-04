@@ -730,12 +730,25 @@ void WebServer::processRequest(struct mg_connection* mgConnection, struct http_m
 		}
 	} // End of examine path handlers.
 
+	ESP_LOGD(LOG_TAG, "filename len = %d char = '%c'", message->uri.len, *message->uri.p);
+
+	int fileNameLen = message->uri.len;
+	const char *fileNameP = message->uri.p;
+
+	if ((fileNameLen == 1) && (*fileNameP == '/'))
+	{
+		// if they are asking for "/" then give them index.html
+		ESP_LOGD(LOG_TAG, "We should fill in index.html");
+		fileNameP = std::string("/index.html").c_str();
+		fileNameLen = strlen(fileNameP);
+	}
+
 	// Because we reached here, it means that we did NOT match a handler.  Now we want to attempt
 	// to retrieve the corresponding file content.
 	std::string filePath;
-	filePath.reserve(httpResponse.getRootPath().length() + message->uri.len + 1);
+	filePath.reserve(httpResponse.getRootPath().length() + fileNameLen + 1);
 	filePath += httpResponse.getRootPath();
-	filePath.append(message->uri.p, message->uri.len);
+	filePath.append(fileNameP, fileNameLen);
 
 	ESP_LOGD(LOG_TAG, "Opening file: %s", filePath.c_str());
 	FILE* file = nullptr;
